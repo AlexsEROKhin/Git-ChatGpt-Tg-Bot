@@ -46,7 +46,13 @@ def get_response_from_chatgpt(user_text: str) -> str:
 async def gpt_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     image_path = os.path.join("assets", "gpt_interface.png")
     if os.path.exists(image_path):
-        await update.message.reply_photo(photo=InputFile(image_path))
+        try:
+            with open(image_path, "rb") as photo:
+                await update.message.reply_photo(
+                    photo=InputFile(photo, filename="gpt_interface.png")
+                )
+        except Exception as e:
+            await update.message.reply_text(f"Не вдалося відправити зображення: {e}")
     else:
         await update.message.reply_text("Зображення не знайдено.")
 
@@ -79,12 +85,13 @@ async def talk_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     # Проверяем наличие файла изображения
     if os.path.exists(image_path):
-        # Отправляем изображение
-        await update.message.reply_photo(photo=InputFile(image_path))
+        try:
+            with open(image_path, "rb") as photo:
+                await update.message.reply_photo(photo=InputFile(photo, filename="talk_persona.png"))
+        except Exception as e:
+            await update.message.reply_text(f"Не вдалося відправити зображення: {e}")
     else:
-        # Если изображения нет – отправляем текстовое уведомление
-        await update.message.reply_text("Зображення для діалогу з особистістю не знайдено.")
-
+        await update.message.reply_text("Зображення не знайдено.")
     # Создаем inline-кнопки для выбора каждой личности.
     # Для каждой личности создаем отдельный ряд с кнопкой.
     keyboard_buttons = []
@@ -132,3 +139,47 @@ async def talk_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     else:
         # Если формат callback_data не соответствует ожиданиям, сообщаем об ошибке
         await query.edit_message_text(text="Невірний вибір, спробуйте ще раз.")
+
+
+# Допустим, у нас есть словарь тем квиза
+QUIZ_TOPICS = {
+    "Історія": "Задай історичне питання.",
+    "Наука": "Задай наукове питання.",
+    "Географія": "Задай географічне питання."
+}
+
+
+async def quiz_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    image_path = os.path.join("assets", "quiz.png")
+    if os.path.exists(image_path):
+        try:
+            with open(image_path, "rb") as photo:
+                await update.message.reply_photo(
+                    photo=InputFile(photo, filename="quiz.png")
+                )
+        except Exception as e:
+            await update.message.reply_text(f"Не вдалося відправити зображення: {e}")
+    else:
+        await update.message.reply_text("Зображення не знайдено.")
+
+    keyboard = [
+        [InlineKeyboardButton(topic, callback_data=f"quiz:{topic}") for topic in QUIZ_TOPICS.keys()]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Виберіть тему квізу:", reply_markup=reply_markup)
+
+
+# Обработчик для выбора темы квіза
+async def quiz_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    if data.startswith("quiz:"):
+        topic = data.split(":", 1)[1]
+        # Сохраняем тему в контекст для последующего использования
+        context.user_data["quiz_topic"] = topic
+        # Заглушка: запрашиваем вопрос у ChatGPT
+        quiz_question = f"Питання з теми {topic}: Що ви знаєте про це?"
+        context.user_data["quiz_score"] = 0  # сбрасываем счет
+        await query.edit_message_text(text=quiz_question)
+        # Можно установить ожидание следующего текстового сообщения от пользователя как ответ на квіз
